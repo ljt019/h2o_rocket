@@ -1,4 +1,4 @@
-# Rocket Fuel Demo
+# H2O Rocket Exhibit
 
 ## Overview
 
