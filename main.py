@@ -109,7 +109,7 @@ class Relay:
 
 
 # =========================
-# Valve Control Functions
+# Main Sequence Functions
 # =========================
 
 def generate_fuel(shared_relay, duration=5):
@@ -139,7 +139,7 @@ def fire_rocket(fire_valve, duration=2):
     logging.info("Rocket fired.")
 
 
-def wait_for_button_press(button, timeout=30):
+def wait_for_button_press(button, timeout=60):
     """Wait for a button press with a timeout."""
     start_time = time.time()
     while not button.is_pressed():
