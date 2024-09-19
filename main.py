@@ -138,6 +138,12 @@ def fire_rocket(fire_valve, duration=2):
     fire_valve.turn_off()
     logging.info("Rocket fired.")
 
+def reset_system():
+    logging.info("Resetting system")
+    transfer_fuel() # Transfer fuel to reset the system
+    fire_rocket() # Fire the rocket to reset the system
+    logging.info("System reset.")
+
 
 def wait_for_button_press(button, timeout=60):
     """Wait for a button press with a timeout."""
@@ -182,12 +188,14 @@ def main():
             logging.info("Waiting for green button press...")
             if not wait_for_button_press(green_button):
                 logging.error("Green button not pressed in time. Aborting sequence.")
+                reset_system()
                 continue  # Restart the loop or handle accordingly
 
             # Blink the blue LED until the blue button is pressed or timeout
             logging.info("Waiting for blue button press...")
             if not wait_for_button_press(blue_button):
                 logging.error("Blue button not pressed in time. Aborting sequence.")
+                reset_system()
                 continue
 
             # Transfer fuel
@@ -197,6 +205,7 @@ def main():
             logging.info("Waiting for red button press...")
             if not wait_for_button_press(red_button):
                 logging.error("Red button not pressed in time. Aborting sequence.")
+                fire_rocket() # Fire the rocket to reset the system
                 continue
 
             # Fire the rocket
