@@ -1,14 +1,5 @@
 from machine import Pin
 import time
-import logging
-import _thread
-
-# =========================
-# Configuration and Setup
-# =========================
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # =========================
 # Pin Constants
@@ -122,12 +113,12 @@ class Relay:
     def turn_on(self):
         """Activate the relay."""
         self.relay.on()
-        logging.info(f"Relay on pin {self.relay_pin} turned ON.")
+        print(f"Relay on pin {self.relay_pin} turned ON.")
 
     def turn_off(self):
         """Deactivate the relay."""
         self.relay.off()
-        logging.info(f"Relay on pin {self.relay_pin} turned OFF.")
+        print(f"Relay on pin {self.relay_pin} turned OFF.")
 
 
 # =========================
@@ -136,29 +127,29 @@ class Relay:
 
 def generate_fuel(bubble_valve, duration=BUBBLE_SLEEP):
     """Activate bubble valve to "generate fuel"."""
-    logging.info("Generating fuel: Activating bubble valve.")
+    print("Generating fuel: Activating bubble valve.")
     bubble_valve.turn_on()
     time.sleep(duration)  # Duration to generate fuel
     bubble_valve.turn_on()
-    logging.info("Fuel generation completed.")
+    print("Fuel generation completed.")
 
 
 def transfer_fuel(transfer_valve, duration=TRANSFER_SLEEP):
     """Activate transfer valve to transfer fuel."""
-    logging.info("Transferring fuel: Turning on transfer valve.")
+    print("Transferring fuel: Turning on transfer valve.")
     transfer_valve.turn_on()
     time.sleep(duration)  # Duration to transfer fuel
     transfer_valve.turn_off()
-    logging.info("Fuel transfer completed.")
+    print("Fuel transfer completed.")
 
 
 def fire_rocket(fire_valve, duration=FIRE_DURATION):
     """Activate fire valve to fire the rocket."""
-    logging.info("Firing rocket: Turning on fire valve.")
+    print("Firing rocket: Turning on fire valve.")
     fire_valve.turn_on()
     time.sleep(duration)  # Duration to fire the rocket
     fire_valve.turn_off()
-    logging.info("Rocket fired.")
+    print("Rocket fired.")
 
 
 def reset_system(transfer_valve_relay, fire_valve_relay):
@@ -168,10 +159,10 @@ def reset_system(transfer_valve_relay, fire_valve_relay):
     :param transfer_valve_relay: Relay controlling the transfer valve.
     :param fire_valve_relay: Relay controlling the fire valve.
     """
-    logging.info("Resetting system.")
+    print("Resetting system.")
     transfer_fuel(transfer_valve_relay)  # Transfer fuel to reset the system
     fire_rocket(fire_valve_relay)        # Fire the rocket to reset the system
-    logging.info("System reset.")
+    print("System reset.")
 
 
 def wait_for_button_press(button, timeout=60):
@@ -186,10 +177,10 @@ def wait_for_button_press(button, timeout=60):
     while not button.is_pressed():
         button.blink_led()
         if (time.time() - start_time) > timeout:
-            logging.warning(f"Timeout waiting for {button.led} button press.")
+            print(f"Timeout waiting for {button.led} button press.")
             return False
     button.led.off()
-    logging.info("Button pressed.")
+    print("Button pressed.")
     return True
 
 
@@ -214,22 +205,22 @@ def main():
     while True:
         # Wait until the encoder is activated (full rotation detected)
         if encoder.is_activated():
-            logging.info("Activation signal received. Starting sequence.")
+            print("Activation signal received. Starting sequence.")
 
             # Generate fuel
             generate_fuel(bubble_valve_relay)
 
             # Blink the green LED until the green button is pressed or timeout
-            logging.info("Waiting for green button press...")
+            print("Waiting for green button press...")
             if not wait_for_button_press(green_button):
-                logging.error("Green button not pressed in time. Aborting sequence.")
+                print("Green button not pressed in time. Aborting sequence.")
                 reset_system(transfer_valve_relay, fire_valve_relay)
                 continue  # Restart the loop or handle accordingly
 
             # Blink the blue LED until the blue button is pressed or timeout
-            logging.info("Waiting for blue button press...")
+            print("Waiting for blue button press...")
             if not wait_for_button_press(blue_button):
-                logging.error("Blue button not pressed in time. Aborting sequence.")
+                print("Blue button not pressed in time. Aborting sequence.")
                 reset_system(transfer_valve_relay, fire_valve_relay)
                 continue
 
@@ -237,16 +228,16 @@ def main():
             transfer_fuel(transfer_valve_relay)
 
             # Blink the red LED until the red button is pressed or timeout
-            logging.info("Waiting for red button press...")
+            print("Waiting for red button press...")
             if not wait_for_button_press(red_button):
-                logging.error("Red button not pressed in time. Aborting sequence.")
+                print("Red button not pressed in time. Aborting sequence.")
                 fire_rocket(fire_valve_relay)  # Fire the rocket to reset the system
                 continue
 
             # Fire the rocket
             fire_rocket(fire_valve_relay)
 
-            logging.info("Sequence completed. Resetting system.\n")
+            print("Sequence completed. Resetting system.\n")
 
         # Small delay to prevent CPU overutilization
         time.sleep(0.1)
