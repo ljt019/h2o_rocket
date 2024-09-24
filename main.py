@@ -14,15 +14,17 @@ FIRE_VALVE_RELAY_PIN = 11
 ENCODER_PIN = 15
 
 # Timing Constants
-BUBBLE_SLEEP = 10
-TRANSFER_SLEEP = 5
-FIRE_DURATION = 2
+BUBBLE_SLEEP = 20
+TRANSFER_SLEEP = 4
+FIRE_DURATION = 1.5
+
+TIMEOUT_DURATION = 30
 
 # Misc Constants
-ROTATION_COUNT_TO_START = 1
+ROTATION_COUNT_TO_START = 4
 
 class Button:
-    def __init__(self, button_pin, led_pin, debounce_time=50):
+    def __init__(self, button_pin, led_pin, debounce_time=25):
         self.button = Pin(button_pin, Pin.IN, Pin.PULL_DOWN)
         self.led = Pin(led_pin, Pin.OUT)
         self.debounce_time = debounce_time / 1000
@@ -100,22 +102,20 @@ def fire_rocket(fire_valve, duration=FIRE_DURATION):
     fire_valve.turn_off()
     print("Rocket fired.")
 
-def reset_system(transfer_valve_relay, fire_valve_relay):
-    print("Resetting system.")
-    transfer_fuel(transfer_valve_relay)
-    fire_rocket(fire_valve_relay)
-    print("System reset.")
-
-def wait_for_button_press(button, timeout=60):
+def wait_for_button_press(button, timeout=TIMEOUT_DURATION):
     start_time = time.time()
     while not button.is_pressed():
         button.blink_led()
         if (time.time() - start_time) > timeout:
             print(f"Timeout waiting for button press.")
             return False
-    button.led.off()
+    button.led.on()
     print("Button pressed.")
     return True
+
+def leds_off(leds):
+    for led in leds:
+        led.off()
 
 def main():
     blue_button = Button(BLUE_BUTTON_PIN, BLUE_LED_PIN)
@@ -126,6 +126,8 @@ def main():
     transfer_valve_relay = Relay(TRANSFER_VALVE_RELAY_PIN)
     fire_valve_relay = Relay(FIRE_VALVE_RELAY_PIN)
 
+    leds_off([blue_button.led, green_button.led, red_button.led])
+
     while True:
         if encoder.is_activated():
 
@@ -134,14 +136,18 @@ def main():
             
             print("Waiting for green button press...")
             if not wait_for_button_press(green_button):
-                print("Green button not pressed in time. Aborting sequence.")
-                reset_system(transfer_valve_relay, fire_valve_relay)
+                print("Green button not pressed in time. Resetting system.")
+                transfer_fuel(transfer_valve_relay)
+                leds_off([blue_button.led, green_button.led, red_button.led])
+                print("Aborting sequence.")
                 continue
             
             print("Waiting for blue button press...")
             if not wait_for_button_press(blue_button):
-                print("Blue button not pressed in time. Aborting sequence.")
-                reset_system(transfer_valve_relay, fire_valve_relay)
+                print("Blue button not pressed in time. Resetting system.")
+                transfer_fuel(transfer_valve_relay)
+                leds_off([blue_button.led, green_button.led, red_button.led])
+                print("Aborting sequence.")
                 continue
             
             print("Transferring fuel...")
@@ -150,14 +156,17 @@ def main():
             print("Waiting for red button press...")
             if not wait_for_button_press(red_button):
                 print("Red button not pressed in time. Aborting sequence.")
-                fire_rocket(fire_valve_relay)
+                leds_off([blue_button.led, green_button.led, red_button.led])
                 continue
             
             print("Firing rocket...")
             fire_rocket(fire_valve_relay)
 
             print("Sequence completed. Resetting system.\n")
+
+            leds_off([blue_button.led, green_button.led, red_button.led])
             time.sleep(30)
+
 
         time.sleep(0.1)
 
