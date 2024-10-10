@@ -1,16 +1,26 @@
 from machine import Pin
 import time
+import micropython
 
-# Pin Constants
-BLUE_BUTTON_PIN = 17
-BLUE_LED_PIN = 16
-GREEN_BUTTON_PIN = 19
-GREEN_LED_PIN = 18
-RED_BUTTON_PIN = 21
-RED_LED_PIN = 20
+# Allocate emergency exception buffer
+micropython.alloc_emergency_exception_buf(100)
+
+# LED Constants
+GREEN_LED_PIN = 16
+BLUE_LED_PIN = 17
+RED_LED_PIN = 18
+
+# Button Constants
+GREEN_BUTTON_PIN = 20
+BLUE_BUTTON_PIN = 21
+RED_BUTTON_PIN = 22
+
+# Relay Constants
 BUBBLE_VALVE_RELAY_PIN = 13
 TRANSFER_VALVE_RELAY_PIN = 12
 FIRE_VALVE_RELAY_PIN = 11
+
+# Encoder Constant
 ENCODER_PIN = 15
 
 # Timing Constants
@@ -21,13 +31,13 @@ FIRE_DURATION = 1.5
 TIMEOUT_DURATION = 30
 
 # Misc Constants
-ROTATION_COUNT_TO_START = 4
+ROTATION_COUNT_TO_START = 1
 
 class Button:
     def __init__(self, button_pin, led_pin, debounce_time=25):
         self.button = Pin(button_pin, Pin.IN, Pin.PULL_DOWN)
         self.led = Pin(led_pin, Pin.OUT)
-        self.debounce_time = debounce_time / 1000
+        self.debounce_time = debounce_time / 1000  # Convert ms to seconds
 
     def is_pressed(self):
         if self.button.value():
@@ -43,29 +53,41 @@ class Button:
         time.sleep(interval)
 
 class Encoder:
-    def __init__(self, encoder_pin, pulses_per_rotation=2, debounce_time=0.001):
+    def __init__(self, encoder_pin, pulses_per_rotation=2, debounce_time=1000):
+        """
+        :param encoder_pin: GPIO pin connected to the encoder
+        :param pulses_per_rotation: Number of pulses per rotation
+        :param debounce_time: Debounce time in microseconds
+        """
         self.encoder = Pin(encoder_pin, Pin.IN, Pin.PULL_DOWN)
         self.pulses_per_rotation = pulses_per_rotation
-        self.debounce_time = debounce_time
+        self.debounce_time = debounce_time  # in microseconds
         self.pulse_count = 0
-        self.activated = False
+        self.activated = 0  # Use integer flag
         self.last_trigger_time = 0
         self.encoder.irq(trigger=Pin.IRQ_RISING, handler=self._irq_handler)
 
     def _irq_handler(self, pin):
-        current_time = time.ticks_us() / 1_000_000
-        if (current_time - self.last_trigger_time) > self.debounce_time:
+        current_time = time.ticks_us()
+        if time.ticks_diff(current_time, self.last_trigger_time) > self.debounce_time:
             self.pulse_count += 1
             self.last_trigger_time = current_time
             if self.pulse_count >= self.pulses_per_rotation:
-                self.activated = True
+                self.activated = 1  # Set flag
                 self.pulse_count = 0
 
     def is_activated(self):
-        if self.activated:
-            self.activated = False
-            return True
-        return False
+        irq_state = micropython.disable_irq()
+        state = self.activated
+        self.activated = 0  # Reset flag
+        micropython.enable_irq(irq_state)
+        return state
+
+    def disable(self):
+        self.encoder.irq(handler=None)
+
+    def enable(self):
+        self.encoder.irq(trigger=Pin.IRQ_RISING, handler=self._irq_handler)
 
 class Relay:
     def __init__(self, relay_pin):
@@ -118,57 +140,87 @@ def leds_off(leds):
         led.off()
 
 def main():
+    # Initialize Buttons
     blue_button = Button(BLUE_BUTTON_PIN, BLUE_LED_PIN)
     green_button = Button(GREEN_BUTTON_PIN, GREEN_LED_PIN)
     red_button = Button(RED_BUTTON_PIN, RED_LED_PIN)
+
+    # Initialize Encoder
     encoder = Encoder(ENCODER_PIN, pulses_per_rotation=(ROTATION_COUNT_TO_START * 2))
+
+    # Initialize Relays
     bubble_valve_relay = Relay(BUBBLE_VALVE_RELAY_PIN)
     transfer_valve_relay = Relay(TRANSFER_VALVE_RELAY_PIN)
     fire_valve_relay = Relay(FIRE_VALVE_RELAY_PIN)
 
+    # Turn off all LEDs initially
     leds_off([blue_button.led, green_button.led, red_button.led])
+
+    # Reset encoder pulse count
+    encoder.pulse_count = 0
 
     while True:
         if encoder.is_activated():
-
+            # Disable encoder to prevent counting during sequence
+            encoder.disable()
             print("Activation signal received. Starting sequence.")
+
+            # Generate Fuel
             generate_fuel(bubble_valve_relay)
-            
+
+            # Wait for Green Button Press
             print("Waiting for green button press...")
             if not wait_for_button_press(green_button):
                 print("Green button not pressed in time. Resetting system.")
                 transfer_fuel(transfer_valve_relay)
                 leds_off([blue_button.led, green_button.led, red_button.led])
+                encoder.pulse_count = 0
                 print("Aborting sequence.")
+                encoder.enable()  # Re-enable encoder
                 continue
-            
+
+            # Wait for Blue Button Press
             print("Waiting for blue button press...")
             if not wait_for_button_press(blue_button):
                 print("Blue button not pressed in time. Resetting system.")
                 transfer_fuel(transfer_valve_relay)
                 leds_off([blue_button.led, green_button.led, red_button.led])
+                encoder.pulse_count = 0
                 print("Aborting sequence.")
+                encoder.enable()  # Re-enable encoder
                 continue
-            
+
+            # Transfer Fuel
             print("Transferring fuel...")
             transfer_fuel(transfer_valve_relay)
-            
+
+            # Wait for Red Button Press
             print("Waiting for red button press...")
             if not wait_for_button_press(red_button):
                 print("Red button not pressed in time. Aborting sequence.")
                 leds_off([blue_button.led, green_button.led, red_button.led])
+                encoder.pulse_count = 0
+                encoder.enable()  # Re-enable encoder
                 continue
-            
+
+            # Fire Rocket
             print("Firing rocket...")
             fire_rocket(fire_valve_relay)
 
             print("Sequence completed. Resetting system.\n")
 
+            # Turn off all LEDs and reset encoder
             leds_off([blue_button.led, green_button.led, red_button.led])
+            encoder.pulse_count = 0
+
+            # Wait before allowing the next sequence
             time.sleep(30)
 
+            # Re-enable encoder
+            encoder.enable()
 
-        time.sleep(0.1)
+        # Short delay to prevent high CPU usage
+        time.sleep(0.2)
 
 if __name__ == "__main__":
     main()
