@@ -77,11 +77,11 @@ class Encoder:
                 self.pulse_count = 0
 
     def is_activated(self):
-        irq_state = micropython.disable_irq()
-        state = self.activated
-        self.activated = 0  # Reset flag
-        micropython.enable_irq(irq_state)
-        return state
+        if self.activated > 0:
+            self.activated -= 1  # Decrement counter
+            return True
+        else:
+            return False
 
     def disable(self):
         self.encoder.irq(handler=None)
